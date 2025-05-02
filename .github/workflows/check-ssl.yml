@@ -17,9 +17,10 @@ jobs:
 
         for DOMAIN in "${DOMAINS[@]}"; do
           echo "🔍 Checking $DOMAIN ..."
-          EXPIRY_DATE=$(ehco | openssl s_slient -servername $DOMAIN -connect $DOMAIN:443 2>/dev/null \
-          | openssl x509 -noout -enddate | cut -d= -f2)
+          EXPIRY_DATE=$(echo | openssl s_client -servername $DOMAIN -connect $DOMAIN:443 2>/dev/null \
+              | openssl x509 -noout -enddate | cut -d= -f2)
 
+          echo "$EXPIRY_DATE"
           if [ -z "$EXPIRY_DATE" ]; then
             MESSAGE+="❌ $DOMAIN: 인증서 정보를 불러올 수 없습니다.\n"
             continue

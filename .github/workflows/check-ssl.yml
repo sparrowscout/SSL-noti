@@ -1,0 +1,44 @@
+name: Check SSL Expiry
+
+on:
+  schedule:
+  - cron: '0 0 * * *'
+
+jobs:
+  check-expiry:
+    runs-on: ubuntu-latest
+    steps:
+    - name : Check SSL Expiry for bitmax homepages
+      run: |
+        DOMAINS=("www.bitmax.im" "bitmax.im" "www.maxst.com" "maxst.com")
+        ALERT_THRESHOLD=3
+        MESSAGE=""
+
+        for DOMAIN in "${DOMAINS[@]}"; do
+          echo "🔍 Checking $DOMAIN ..."
+          EXPIRY_DATE=$(ehco | openssl s_slient -servername $DOMAIN -connect $DOMAIN:443 2>/dev/null \
+          | openssl x509 -noout -enddate | cut -d= -f2)
+
+          if [ -z "$EXPIRY_DATE" ]; then
+            MESSAGE+="❌ $DOMAIN: 인증서 정보를 불러올 수 없습니다.\n"
+            continue
+          fi
+
+          EXPIRY_TS=$(date -d "$EXPIRY_DATE" +%s)
+            NOW_TS=$(date +%s)
+            DAYS_LEFT=$(( ($EXPIRY_TS - $NOW_TS) / 86400 ))
+
+            if [ "$DAYS_LEFT" -le "$ALERT_THRESHOLD" ]; then
+              MESSAGE+="⚠️ *$DOMAIN*: ${DAYS_LEFT}일 후 만료 (만료일: $EXPIRY_DATE)\n"
+            else
+              echo "$DOMAIN: OK (${DAYS_LEFT}일 남음)"
+            fi
+          done
+
+          if [ -n "$MESSAGE" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{\"text\": \"🔔 *[SSL 인증서 만료 경고]*\n$MESSAGE\"}" \
+              ${{ secrets.SLACK_WEBHOOK_URL }}
+          else
+            echo "모든 도메인의 인증서가 정상입니다."
+          fi
